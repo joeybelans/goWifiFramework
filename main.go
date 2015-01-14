@@ -1,88 +1,130 @@
 package main
 
 import (
-   "fmt"
-   "flag"
-   "net/http"
-   "log"
-   "database/sql"
-   "os"
-   _ "github.com/mattn/go-sqlite3"
+	"database/sql"
+	"errors"
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"path/filepath"
+	"strings"
+
+	"github.com/joeybelans/gokismet/kdb"
+	"github.com/joeybelans/gokismet/kismet"
+	"github.com/joeybelans/gokismet/kismetTemplate"
 )
 
-// Create networks structure
-type networks []string
- 
-func (n *networks) String() string {
-    return fmt.Sprintf("%s", *n)
-}
-
-func (n *networks) Set(network string) error {
-   *n = append(*n, network)
-   return nil
-}
- 
 // Prints the program usage
 func Usage() {
-   fmt.Println("Usage: gokismet -lport <web port> -khost <kismet IP> -kport <kismet port> [-ssid <essid>]...\n")
-   fmt.Println("Defaults:")
-   flag.PrintDefaults()
+	fmt.Println("Usage: gokismet -lport <web port> -khost <kismet IP> -kport <kismet port> [-ssid <essid>]...\n")
+	fmt.Println("Defaults:")
+	flag.PrintDefaults()
 }
 
 // Command line arguments
-var (
-   mynetworks networks
-   lport = flag.Int("lport", 8080, "Local HTTP Service Port")
-   khost = flag.String("khost", "127.0.0.1", "Kismet Service Host")
-   kport = flag.Int("kport", 2501, "Kismet Service Port")
-   dbfile = flag.String("sql", "gokismet.db", "SQLite3 Filename")
-)
+type ssid []string
+
+func (s *ssid) String() string {
+	return fmt.Sprint(*s)
+}
+
+func (s *ssid) Set(value string) error {
+	if len(*s) > 0 {
+		return errors.New("SSID already set")
+	}
+	for _, ssid := range strings.Split(value, ",") {
+		flag := false
+		for _, ele := range *s {
+			if ele == ssid {
+				flag = true
+				break
+			}
+		}
+		if !flag {
+			*s = append(*s, ssid)
+		}
+	}
+	return nil
+}
 
 // Main function
 func main() {
-   // Parse arguments
-   flag.Var(&mynetworks, "ssid", "List of In-Scope SSIDs")
-   flag.Parse()
+	// Parse arguments
+	var (
+		ssids  ssid
+		lhost  = flag.String("lhost", "127.0.0.1", "HTTP service host")
+		lport  = flag.Int("lport", 8080, "HTTP service port")
+		khost  = flag.String("khost", "127.0.0.1", "Kismet service host")
+		kport  = flag.Int("kport", 2501, "Kismet service port")
+		dbfile = flag.String("sql", "gokismet.db", "SQLite3 filename")
+		outdir = flag.String("outdir", ".", "Kismet output file directory")
+		debug  = flag.Bool("debug", false, "Debug flag")
+		// Add option for default channel hopping list
+	)
+	flag.Var(&ssids, "ssids", "List of in-scope SSIDs")
+	flag.Parse()
 
-   // Display SSIDs, if any
-   if len(mynetworks) > 0 {
-      fmt.Println("In-scope networks:")
-      for i := 0; i < len(mynetworks); i++ {
-         fmt.Printf("\t%s\n", mynetworks[i])
-      }
-   }
-   fmt.Println()
+	// Display SSIDs, if any
+	if *debug && len(ssids) > 0 {
+		fmt.Println("lhost ", *lhost, ": lport ", *lport, ": khost ", *khost, ": kport ", *kport, ": dbfile ", *dbfile, ": outdir ", *outdir, ": ssids ", ssids)
+		fmt.Println("In-scope networks:")
+		for i := 0; i < len(ssids); i++ {
+			fmt.Printf("\t%s\n", ssids[i])
+		}
+	}
+	fmt.Println()
 
-   // Create/Open sqlite3 file
-   db, err := sql.Open("sqlite3", *dbfile)
-   if err != nil {
-      log.Fatal(err)
-   }
-   defer db.Close()
+	// Get the full output directory path
+	*outdir, _ = filepath.Abs(*outdir)
 
-   // Create the schema, if necessary
-   _, err = os.Stat(*dbfile)
-   if os.IsNotExist(err) {
-      CreateDB(db)
-   }
+	// Create/Open sqlite3 file
+	db, err := sql.Open("sqlite3", *dbfile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+	kdb.CreateDB(db, *dbfile)
 
-   // Start kismet handler
-   message := make(chan string)
-   go kismet.run(*khost, *kport, message)
+	// Start kismet handler
+	kismet.Run(*khost, *kport, db, *debug, ssids)
 
-   // HTTP handlers
-   http.HandleFunc("/", HttpHome)
-   http.HandleFunc("/networks/", HttpNetworks)
-   http.HandleFunc("/clients/", HttpClients)
-   http.HandleFunc("/rogues/", HttpRogues)
-   http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-      HttpWS(w, r, message)
-   })
+	// HTTP handlers
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		kismetTemplate.HttpHome(w, r, *outdir+"/"+*dbfile, ssids)
+	})
+	http.HandleFunc("/discover", func(w http.ResponseWriter, r *http.Request) {
+		kismetTemplate.HttpDiscover(w, r, *outdir+"/"+*dbfile, ssids)
+	})
+	http.HandleFunc("/global.css", func(w http.ResponseWriter, r *http.Request) {
+		kismetTemplate.HttpCSS(w, r)
+	})
+	http.HandleFunc("/kismet.js", func(w http.ResponseWriter, r *http.Request) {
+		kismetTemplate.HttpKismetJS(w, r)
+	})
+	http.HandleFunc("/discover.js", func(w http.ResponseWriter, r *http.Request) {
+		kismetTemplate.HttpDiscoverJS(w, r, ssids)
+	})
+	http.HandleFunc("/ws", kismet.ServeWS)
+	/*
+		//http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { HttpHome(w, r, *outdir, ssids) })
+		/*
+			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				HttpHome(w, r, message)
+			})
+				http.HandleFunc("/", HttpHome)
+				http.HandleFunc("/networks/", HttpNetworks)
+				http.HandleFunc("/clients/", HttpClients)
+				http.HandleFunc("/rogues/", HttpRogues)
+				http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+					HttpWS(w, r, message)
+				})
+	*/
 
-   // Start web service
-   fmt.Printf("Browse to http://127.0.0.1:%d to access the web interface\n", *lport)
-   fmt.Println("Press CTRL+C to stop the server")
-   if err := http.ListenAndServe(fmt.Sprintf(":%d", *lport), nil); err != nil {
-      log.Fatal("ListenAndServe:", err)
-   }
+	// Start web service
+	fmt.Printf("Browse to http://%s:%d to access the web interface\n", *lhost, *lport)
+	fmt.Println("Press CTRL+C to stop the server")
+	if err := http.ListenAndServe(fmt.Sprintf("%s:%d", *lhost, *lport), nil); err != nil {
+		log.Fatal("ListenAndServe:", err)
+	}
 }
