@@ -219,7 +219,7 @@ table.data thead{
    height: 30px;
 }
 table.data tbody {
-   height: 500px;
+   max-height: 500px;
    overflow-y: auto;
    overflow-x: hidden;
 }
@@ -241,14 +241,14 @@ table.data tr:hover td {
    font-size: small;
    background: #fffbae;
 }
-table.data .network { width: 200px; }
-table.data .bssid { width: 125px; }
-table.data .channel { width: 50px; }
-table.data .last { width: 200px; }
-table.data .power { width: 50px; }
-table.data .max { width: 50px; }
-table.data .clients { width: 50px; }
-table.data .packets { width: 50px; }
+table.data .network { width: 200px; height: 100%; }
+table.data .bssid { width: 125px; height: 100%; }
+table.data .channel { width: 50px; height: 100%; }
+table.data .last { width: 200px; height: 100%; }
+table.data .power { width: 50px; height: 100%; }
+table.data .max { width: 50px; height: 100%; }
+table.data .clients { width: 50px; height: 100%; }
+table.data .packets { width: 50px; height: 100%; }
 ul.stats li {
    font-size: small;
    color: #004415;
@@ -282,6 +282,14 @@ a.data:hover {
 }
 .selected {
    background: #ff0000;
+}
+.apDetails {
+   display: none;
+   position: absolute;
+   text-align: left;
+   border-style: solid;
+   background-color: #ffffff;
+   padding: 3px;
 }
 .divFilter {
    display: none;

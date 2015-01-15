@@ -23,6 +23,8 @@ function processKismetUpdate(type) {
       displayAccessPoints(accessPoints);
    } else if (type == 'SOURCE') {
       updateInterfaces();
+   } else if (type == 'CLIENT') {
+      displayClients(clients);
    }
 }
 
@@ -250,7 +252,7 @@ function updateFilter(list, filter, type, cname, dname) {
 }
 
 function displayAccessPoints(accessPoints) {
-   var msg = "<table onClick='alert(this.rows)' class='data'> \
+   var msg = "<table onClick='getAccessPoint(event)' class='data'> \
 <thead>\n \
 <tr><th><div class='network'><a class='data' href='' onClick='setSort(\"network\"); return false;'>Network</a></div></th>\n \
 <th><div class='bssid'><a class='data' href='' onClick='setSort(\"bssid\"); return false;'>BSSID</a></div></th>\n \
@@ -317,10 +319,16 @@ function displayDIV(element, event, name, status) {
       updateFilters(accessPoints);
    } else if ((!is_child_of(element, current_mouse_target)) && (element != current_mouse_target) &&
       (element.id == name) && (document.getElementById(name).style.display == 'block' && status == 'none')) {
-      setFilter(name, status);
-      updateFilterStatus();
-      var accessPoints = getAccessPoints();
-      displayAccessPoints(accessPoints);
+      if ((name == 'divNetwork') || (name == 'divChannel') || (name == 'divScope') || (name == 'divBSSID')) {
+         setFilter(name, status);
+         updateFilterStatus();
+         var accessPoints = getAccessPoints();
+         displayAccessPoints(accessPoints);
+      } else {
+	 var nic = name.substring(3);
+         conn.send('nicCHANSOURCE:' + nic + ':' + document.getElementById('div' + nic + 'Clist').value);
+         conn.send('nicHOP:' + nic + ":" + document.getElementById('div' + nic + 'Crate').value);
+      }
    }
    document.getElementById(name).style.display = status;
 }
@@ -425,6 +433,7 @@ function clearFilters() {
 
 function updateInterfaces() {
    var msg = '';
+
    for (nic in interfaces) {
       var name;
       if (nic == interfaces[nic].name) {
@@ -433,28 +442,133 @@ function updateInterfaces() {
 	 name = interfaces[nic].name + ' (' + nic + ')';
       }
 
+      if ((document.getElementById('div' + name) != null) && (document.getElementById('div' + name).style.display == 'block')) {
+	 return;
+      }
+
       msg += "<span class='stitle'>" + name + "</span><br>\n \
+</span><br>\n \
 <table class='stats'>\n \
-<tr><td colspan='2' align='center'><input type='radio' name='kmethod_" + name + "' value='locked'>Locked \n \
-<input type='radio' name='kmethod_" + name + "' value='hopping' checked>Hopping</td></tr>\n \
-<tr><th align='right'>Channel List</th><td>" + interfaces[nic].channels.split(",").length + " channels @ XXX channels/sec</td></tr>\n \
-<tr><th align='righ'>Current Channel</th><td>" + interfaces[nic].current + "</td></tr>\n \
+<tr><td colspan='2' align='center'><input type='radio' name='kmethod_" + name + "' value='locked' onClick=\"channelLock('" + name + "');\"";
+
+      if (interfaces[nic].hop == 0) {
+	 msg += ' checked';
+      }
+      
+      msg += ">Locked \n \
+<input type='radio' name='kmethod_" + name + "' value='hopping' onChange=\"channelHop('" + name + "');\"";
+
+      if ((interfaces[nic].hop == 3) || (interfaces[nic].hop == 1)) {
+	 msg += ' checked';
+      }
+      
+      msg += ">Hopping</td></tr>\n";
+
+      if ((interfaces[nic].hop == 3) || (interfaces[nic].hop == 1)) {
+         msg += "<tr><th align='right'>\n \
+<div onclick=\"displayDIV(this, event, 'div" + name + "', 'block');\" onmouseout=\"displayDIV(this, event, 'div" + name + "', 'none');\">Channel List</div>\n \
+<div id='div" + name + "' class='divFilter' onmouseover=\"displayDIV(this, event, 'div" + name +"', 'block');\" onmouseout=\"displayDIV(this, event, 'div" + name +"', 'none');\">\n \
+<table><tr><th align='right'>Channel List:</th><td><input type='text' id='div" + name + "Clist' value='" + interfaces[nic].channels + "' size='50'></td></tr>\n \
+<tr><th align='right'>Rate:</th><td><input type='text' id='div" + name + "Crate' value='" + interfaces[nic].velocity + "' size='3'>channels/sec</td></tr></table></div></th>\n \
+<td>" + interfaces[nic].channels.split(",").length + " channels @ " + interfaces[nic].velocity + " channels/sec</td></tr>\n";
+      }
+
+      msg += "<tr><th align='righ'>Current Channel</th><td>" + interfaces[nic].current + "</td></tr>\n \
 </table><p>\n";
    }
    document.getElementById('interfaces').innerHTML = msg;
 }
 
-/*
-function updateInterfaceDIV() {
-<tr><td colspan='2'><input type='radio' name='kmethod' value='locked'>Locked <input type='radio' name='kmethod' value='hopping' checked>Hopping</td></tr>
-<tr><th align='right'><div onclick="displayDIV(this, event, 'divKChannel', 'block');" onmouseout="displayDIV(this, event, 'divKChannel', 'none');">Channel List</div>
-<div id="divKChannel" class="divFilter" onmouseover="displayDIV(this, event, 'divKChannel', 'block');" onmouseout="displayDIV(this, event, 'divKChannel', 'none');">
-<table><tr><th align='right'>Channel List:</th><td><input type='text' name='clist' value='1,11,153' size='50'></td></tr>
-<tr><th align='right'>Rate:</th><td><input type='text' name='crate' value='3' size='3'>channels/sec</td></tr>
-<tr><td colspan='2' align='center'><input type='submit' value='Update Kismet'></td></tr></table></div></th>
-<td><div onclick="displayDIV(this, event, 'divKChannel', 'block');" onmouseout="displayDIV(this, event, 'divKChannel', 'none');">10 channels @ 3 channels/sec</div></td></tr>
-<tr><th align='right'>Current Channel</th><td><div id='interfaces'></div></td></tr>
-</table>
-*/
+function channelLock(name) {
+   var channel = prompt('Enter channel', '');
+   if (isNaN(channel)) {
+      alert (channel + ' is not a number');
+   } else {
+      conn.send('nicLOCK:' + name + ':' + channel);
+   }
+}
+
+function channelHop(name) {
+   var vel;
+   if (document.getElementById('div' + name + 'Crate') != null) {
+      vel = document.getElementById('div' + name + 'Crate').value;
+   } else {
+      vel = 3;
+   }
+   conn.send('nicHOP:' + name + ":" + vel);
+}
+
+function getAccessPoint(e) {
+   var t = e.target;
+   var p;
+   if (t.nodeName == 'DIV') {
+      p = t.parentNode.parentNode;
+   } else if (t.nodeName == 'TD') {
+      p = t.parentNode;
+   } else {
+      return;
+   }
+
+   conn.send('getAPDetails:' + p.childNodes[1].childNodes[0].innerHTML);
+   //alert (p.childNodes[0].childNodes[0].innerHTML);
+   //alert (p.childNodes[1].childNodes[0].innerHTML);
+}
+
+function apDetails(msg) {
+   var fields = msg.split(";");
+
+   msg = "<span class='stitle'>" + fields[0] + "</span>\n \
+<blockquote>\n \
+<table class='stats'>\n \
+<tr><th>Cloaked</th><td>" + fields[1] + "</td></tr>\n \
+<tr><th>First Seen</th><td>" + fields[2] + "</td></tr>\n \
+<tr><th>Last Seen</th><td>" + fields[3] + "</td></tr>\n \
+<tr><th>Max Rate</th><td>" + fields[4] + "</td></tr>\n \
+<tr><th>Encryption</th><td>" + fields[5] + "</td></tr>\n \
+<tr><th># of APs</th><td>" + fields[6] + "</td></tr>\n \
+</table></blockquote>\n \
+<p>\n \
+<span class='stitle'>" + fields[7] + "</span>\n \
+<blockquote>\n \
+<table class='stats'>\n \
+<tr><th>Type</th><td>" + fields[8] + "</td></tr>\n \
+<tr><th>Manufacturer</th><td>" + fields[9] + "</td></tr>\n \
+<tr><th>Channel</th><td>" + fields[10] + "</td></tr>\n \
+<tr><th>First Seen</th><td>" + fields[11] + "</td></tr>\n \
+<tr><th>Last Seen</th><td>" + fields[12] + "</td></tr>\n \
+<tr><th>Network</th><td>" + fields[14] + "</td></tr>\n \
+<tr><th>Netmask</th><td>" + fields[15] + "</td></tr>\n \
+<tr><th>Gateway</th><td>" + fields[16] + "</td></tr>\n \
+<tr><th>Power</th><td>" + fields[17] + "</td></tr>\n \
+<tr><th>Min Power</th><td>" + fields[18] + "</td></tr>\n \
+<tr><th>Max Power</th><td>" + fields[19] + "</td></tr>\n \
+<tr><th># of Packets</th><td>" + fields[20] + "</td></tr>\n \
+</table></blockquote>";
+
+   document.getElementById('apDetails').innerHTML = msg;
+   document.getElementById('apDetails').style.display = 'block';
+}
+
+function displayClients(clients) {
+   var msg = "<table class='data'> \
+<thead>\n \
+<tr><th><div class='network'><a class='data' href='' onClick='setSort(\"network\"); return false;'>Client</a></div></th>\n \
+<th><div class='last'><a class='data' href='' onClick='setSort(\"lastseen\"); return false;'>Last Seen</a></div></th>\n \
+<th><div class='power'><a class='data' href='' onClick='setSort(\"power\"); return false;'>Power</a></div></th>\n \
+<th><div class='max'><a class='data' href='' onClick='setSort(\"max\"); return false;'>Min</a></div></th>\n \
+<th><div class='max'><a class='data' href='' onClick='setSort(\"max\"); return false;'>Max</a></div></th>\n \
+<th><div class='packets'><a class='data' href='' onClick='setSort(\"packets\"); return false;'>Packets</a></div></th></tr>\n \
+</thead>\n \
+<tbody>\n";
+
+   for (var mac in clients) {
+      var client = clients[mac];
+      msg += "<tr><td><div class='network'>" + mac + "</div></td><td><div class='last'>" + client.last + "</div></td><td><div class='power'>" + client.power + "</div></td><td><div class='max'>" +
+                client.min + "</div></td><td><div class='max'>" + client.max + "</div></td><td><div class='packets'>" + client.packets + "</div></td></tr>\n";
+   }
+
+   msg = msg + "</tbody></table>\n";
+   document.getElementById("clientOutput").innerHTML = msg;
+}
 `))
 }

@@ -544,6 +544,13 @@ func parseSSID(fields []string) {
 		if !exists {
 			networks[fields[4]].bssids[fields[1]] = fields[9]
 		}
+		_, exists = accessPoints[fields[1]]
+		if !exists {
+			accessPoints[fields[1]] = accessPoint{}
+		}
+		ap := accessPoints[fields[1]]
+		ap.ssid = fields[4]
+		accessPoints[fields[1]] = ap
 		wsSend("kismetParseSSID", fields[4]+";"+fields[1]+";"+fields[9])
 	}
 }
@@ -564,17 +571,23 @@ func parseCLIENT(fields []string) {
 	maxSignalDBM, _ := strconv.Atoi(fields[9])
 	numPackets, _ := strconv.Atoi(fields[10])
 
-	_, exists := clients[fields[2]]
-	if !exists && fields[2] != fields[1] {
-		clients[fields[2]] = client{fields[1], fields[4], fields[5], signalDBM, minSignalDBM, maxSignalDBM, numPackets}
-	} else {
-		cli := clients[fields[2]]
-		cli.lasttime = fields[4]
-		cli.signalDBM = signalDBM
-		cli.minSignalDBM = minSignalDBM
-		cli.maxSignalDBM = maxSignalDBM
-		cli.numPackets = numPackets
-		clients[fields[2]] = cli
+	if fields[1] != fields[2] {
+		_, exists := clients[fields[2]]
+		if !exists {
+			clients[fields[2]] = client{fields[1], fields[4], fields[5], signalDBM, minSignalDBM, maxSignalDBM, numPackets}
+		} else {
+			cli := clients[fields[2]]
+			cli.lasttime = fields[5]
+			cli.signalDBM = signalDBM
+			cli.minSignalDBM = minSignalDBM
+			cli.maxSignalDBM = maxSignalDBM
+			cli.numPackets = numPackets
+			clients[fields[2]] = cli
+		}
+
+		lInt, _ := strconv.Atoi(fields[5])
+
+		wsSend("kismetParseCLIENT", fields[2]+";"+time.Unix(int64(lInt), 0).Local().String()+";"+fields[7]+";"+fields[8]+";"+fields[9]+";"+fields[10])
 	}
 }
 
@@ -601,6 +614,10 @@ func wsSend(msgType string, msg string) {
 				wsconn.WriteMessage(websocket.TextMessage, []byte(msgType+":"+msg))
 			}
 		case "kismetParseSOURCE":
+			if curPage == "/discover" {
+				wsconn.WriteMessage(websocket.TextMessage, []byte(msgType+":"+msg))
+			}
+		case "kismetParseCLIENT":
 			if curPage == "/discover" {
 				wsconn.WriteMessage(websocket.TextMessage, []byte(msgType+":"+msg))
 			}
@@ -696,6 +713,50 @@ func processWSCommand(msg string) {
 				break
 			}
 		}
+	case "nicLOCK":
+		t := strings.Split(s[1], ":")
+		for uid, ele := range kismet.interfaces {
+			if ele.pname == t[0] {
+				Send("HOPSOURCE", uid+" LOCK "+t[1])
+				break
+			}
+		}
+	case "nicHOP":
+		t := strings.Split(s[1], ":")
+		for uid, ele := range kismet.interfaces {
+			if ele.pname == t[0] {
+				Send("HOPSOURCE", uid+" HOP "+t[1])
+				break
+			}
+		}
+	case "nicCHANSOURCE":
+		t := strings.Split(s[1], ":")
+		for uid, ele := range kismet.interfaces {
+			if ele.pname == t[0] {
+				Send("CHANSOURCE", uid+" "+t[1])
+				break
+			}
+		}
+	case "getAPDetails":
+		ap := accessPoints[s[1]]
+		wlan := networks[ap.ssid]
+
+		i, _ := strconv.ParseInt(ap.firsttime, 10, 64)
+		apFirstTime := time.Unix(i, 0)
+
+		i, _ = strconv.ParseInt(ap.lasttime, 10, 64)
+		apLastTime := time.Unix(i, 0)
+
+		i, _ = strconv.ParseInt(wlan.firsttime, 10, 64)
+		wlanFirstTime := time.Unix(i, 0)
+
+		i, _ = strconv.ParseInt(wlan.lasttime, 10, 64)
+		wlanLastTime := time.Unix(i, 0)
+
+		wsSend("apDetails", ap.ssid+";"+strconv.Itoa(wlan.cloaked)+";"+wlanFirstTime.String()+";"+wlanLastTime.String()+";"+strconv.Itoa(wlan.maxrate)+";"+wlan.encryption+";"+
+			strconv.Itoa(len(wlan.bssids))+";"+s[1]+";"+ap.apType+";"+ap.manuf+";"+strconv.Itoa(ap.channel)+";"+apFirstTime.String()+";"+apLastTime.String()+";"+
+			strconv.Itoa(ap.atype)+";"+ap.rangeip+";"+ap.netmaskip+";"+ap.gatewayip+";"+strconv.Itoa(ap.signalDBM)+";"+strconv.Itoa(ap.minSignalDBM)+";"+
+			strconv.Itoa(ap.maxSignalDBM)+";"+strconv.Itoa(ap.numPackets))
 	}
 }
 

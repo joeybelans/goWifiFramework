@@ -77,11 +77,13 @@ func tmplDiscover() string {
 </table>
 </td></tr></table>
 </div>
-</td><td valign='top'>
-<table>
-<tr><td align='left' valign='top'><div name='wsOutput' id='wsOutput'></div></td></tr>
-<tr><td align='left' valign='top'><div name='clientOutput' id='clientOutput'>Clients<p></div></td></tr>
-</table></td></tr>
+</td><td align='left' valign='top'>
+<div class='apDetails' name='apDetails' id='apDetails' onClick="this.style.display = 'none';"></div>
+<p>
+<div name='wsOutput' id='wsOutput'></div>
+<p>
+<div name='clientOutput' id='clientOutput'></div>
+</td></tr>
 </table></center>
 </body>
 </html>

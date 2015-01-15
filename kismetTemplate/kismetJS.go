@@ -8,6 +8,7 @@ func HttpKismetJS(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(`
 var networks = new Object();
 var interfaces = new Object();
+var clients = new Object();
 
 function kismetParseBSSID(msg) {
    var fields = msg.split(";");
@@ -65,11 +66,33 @@ function kismetParseSOURCE(msg) {
    } else {
       interfaces[fields[0]].current = fields[2];
       interfaces[fields[0]].hop = fields[3];
-      interfaces[fields[0]].velociy = fields[4];
+      interfaces[fields[0]].velocity = fields[4];
       interfaces[fields[0]].channels = fields[5];
    }
 
    processKismetUpdate('SOURCE');
+}
+
+function kismetParseCLIENT(msg) {
+   var fields = msg.split(";");
+
+   if (!(fields[0] in clients)) {
+      clients[fields[0]] = {
+	 last: fields[1],
+	 power: fields[2],
+	 min: fields[3],
+	 max: fields[4],
+	 packets: fields[5]
+      };
+   } else {
+      clients[fields[0]].last = fields[1];
+      clients[fields[0]].power = fields[2];
+      clients[fields[0]].min = fields[3];
+      clients[fields[0]].max = fields[4];
+      clients[fields[0]].packets = fields[5];
+   }
+
+   processKismetUpdate('CLIENT');
 }
 `))
 }
