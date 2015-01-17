@@ -17,7 +17,7 @@ import (
 
 // Prints the program usage
 func Usage() {
-	fmt.Println("Usage: gokismet -lport <web port> -khost <kismet IP> -kport <kismet port> [-ssid <essid>]...\n")
+	fmt.Println("Usage: gokismet -lport <web port> -khost <kismet IP> -kport <kismet port> [-ssid <essid>[,<essid>...]]\n")
 	fmt.Println("Defaults:")
 	flag.PrintDefaults()
 }
@@ -60,9 +60,8 @@ func main() {
 		dbfile = flag.String("sql", "gokismet.db", "SQLite3 filename")
 		outdir = flag.String("outdir", ".", "Kismet output file directory")
 		debug  = flag.Bool("debug", false, "Debug flag")
-		// Add option for default channel hopping list
 	)
-	flag.Var(&ssids, "ssids", "List of in-scope SSIDs")
+	flag.Var(&ssids, "ssids", "List of in-scope SSIDs (comma separated)")
 	flag.Parse()
 
 	// Display SSIDs, if any
@@ -106,20 +105,6 @@ func main() {
 		kismetTemplate.HttpDiscoverJS(w, r, ssids)
 	})
 	http.HandleFunc("/ws", kismet.ServeWS)
-	/*
-		//http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { HttpHome(w, r, *outdir, ssids) })
-		/*
-			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-				HttpHome(w, r, message)
-			})
-				http.HandleFunc("/", HttpHome)
-				http.HandleFunc("/networks/", HttpNetworks)
-				http.HandleFunc("/clients/", HttpClients)
-				http.HandleFunc("/rogues/", HttpRogues)
-				http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-					HttpWS(w, r, message)
-				})
-	*/
 
 	// Start web service
 	fmt.Printf("Browse to http://%s:%d to access the web interface\n", *lhost, *lport)

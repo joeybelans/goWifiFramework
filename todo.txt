@@ -1,0 +1,16 @@
+Add save timestamp to ui
+Check channel config code - not working
+encryption handshakes
+manuf info
+probes are showing up as networks
+add functionality for mdk3
+execute evilap - output hashcat command line
+generate airgraph pics
+save/restore of db file
+find packets for profiling screenshots, and/or pull packets for pics, or actually create screenshot
+lock on channel / update filter via selected AP
+Add network to scope
+Display hidden ssids
+Add APs to scope???
+Real-time view of specific AP/Client (graph and text) for rogue detection
+Real-time view of each channel
