@@ -13,6 +13,8 @@ import (
 	"github.com/joeybelans/gokismet/kdb"
 	"github.com/joeybelans/gokismet/kismet"
 	"github.com/joeybelans/gokismet/kismetTemplate"
+	_ "github.com/joeybelans/gokismet/statik"
+	"github.com/rakyll/statik/fs"
 )
 
 // Prints the program usage
@@ -105,6 +107,13 @@ func main() {
 		kismetTemplate.HttpDiscoverJS(w, r, ssids)
 	})
 	http.HandleFunc("/ws", kismet.ServeWS)
+
+	// Static files
+	statikFS, err := fs.New()
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(statikFS)))
 
 	// Start web service
 	fmt.Printf("Browse to http://%s:%d to access the web interface\n", *lhost, *lport)

@@ -16,7 +16,6 @@ type home struct {
 	StartTxt      string
 	DBFile        string
 	SSIDs         []string
-	Stats         map[string]int
 	Interfaces    []string
 }
 
@@ -33,12 +32,9 @@ func HttpHome(w http.ResponseWriter, req *http.Request, dbfile string, ssids []s
 	hour, min, sec := startTime.Clock()
 	startTxt := fmt.Sprintf("%02d:%02d:%02d", hour, min, sec)
 
-	nCount, cCount, rCount, pCount, pRate, filtered := kismet.Stats()
-
 	iNames := getInterfaces()
 
-	templates["/"].Execute(w, home{kismet.ServerVersion(), kismet.ServerName(), startTxt, dbfile, ssids, map[string]int{"nCount": nCount, "cCount": cCount, "rCount": rCount, "pCount": pCount,
-		"pRate": pRate, "filtered": filtered}, iNames})
+	templates["/"].Execute(w, home{kismet.ServerVersion(), kismet.ServerName(), startTxt, dbfile, ssids, iNames})
 }
 
 func tmplHome() string {
@@ -114,22 +110,26 @@ a.stats:hover {
 <p>
 <span class="stitle">In-scope Networks</span><br>
 <blockquote><ul class="stats">{{range .SSIDs}}
-<li><a class="stats" onClick='conn.send("statsSSID:{{.}}"); return false;' href="">{{.}}</a></li>{{end}}
+<li><a class="stats" onClick='conn.send(JSON.stringify({message: "statsSSID", ssid: {{.}}})); return false;' href="">{{.}}</a></li>{{end}}
 </ul></blockquote>
 <p>
 <span class="stitle">Stats</span><br>
 <table class="stats">
-<tr><th align='left'>Network Count</th><td><div id="statsNcount">{{.Stats.nCount}}</div></td></tr>
-<tr><th align='left'>Client Count</th><td><div id="statsCcount">{{.Stats.cCount}}</div></td></tr>
-<tr><th align='left'>Rogue Count</th><td><div id="statsRcount">{{.Stats.rCount}}</div></td></tr>
-<tr><th align='left'>Packet Count</th><td><div id="statsPcount">{{.Stats.pCount}}</div></td></tr>
-<tr><th align='left'>Packet/Sec</th><td><div id="statsPrate">{{.Stats.pRate}}</div></td></tr>
-<tr><th align='left'>Filtering</th><td><div id="statsFiltered">{{if eq .Stats.filtered 0}}No{{else}}Yes{{end}}</div></td></tr>
+<tr><th align='left'>Network Count</th><td><div id="statsNcount">0</div></td></tr>
+<tr><th align='left'>Rogue Count</th><td><div id="statsRcount">0</div></td></tr>
+<tr><th align='left'>Client Count</th><td><div id="statsCcount">0</div></td></tr>
+<tr><th align='left'>Packet Count</th><td><div id="statsPcount">0</div></td></tr>
+<tr><th align='left'>Packet/Sec</th><td><div id="statsPrate">0</div></td></tr>
+<tr><th align='left'>Crypted Packets</th><td><div id="statsCrypted">0</div></td></tr>
+<tr><th align='left'>Dropped Packets</th><td><div id="statsDropped">0</div></td></tr>
+<tr><th align='left'>Filtered</th><td><div id="statsFiltered">0</div></td></tr>
+<tr><th align='left'>Management</th><td><div id="statsManagement">0</div></td></tr>
+<tr><th align='left'>Data</th><td><div id="statsData">0</div></td></tr>
 </table>
 <p>
 <span class="stitle">Network Interfaces</span><br>
 <blockquote><ul class="stats">{{range .Interfaces}}
-<li><a class="stats" onClick='conn.send("statsNIC:{{.}}"); return false;' href="">{{.}}</a></li>{{end}}
+<li><a class="stats" onClick='conn.send(JSON.stringify({message: "statsNIC", nic: {{.}}})); return false;' href="">{{.}}</a></li>{{end}}
 </ul></blockquote>
 </div>
 </td><td align="left" valign="top"><div name="wsOutput" id="wsOutput"></div></td></tr>
@@ -137,5 +137,4 @@ a.stats:hover {
 </body>
 </html>
 `
-	//<li><a class="stats" href="/statsNIC/{{.}}">{{.}}</a></li>{{end}}
 }

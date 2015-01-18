@@ -1,47 +1,44 @@
 package kismet
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/gorilla/websocket"
 )
 
-func wsSend(msgType string, msg string) {
+func wsSend(obj map[string]interface{}) {
 	if wsconn != nil {
-		switch msgType {
+		switch obj["message"] {
 		case "kismetParseInfo":
 			if curPage == "/" {
-				wsconn.WriteMessage(websocket.TextMessage, []byte(msgType+":"+msg))
+				wsconn.WriteJSON(obj)
 			}
 		case "kismetParseSSID":
 			if curPage == "/discover" {
-				wsconn.WriteMessage(websocket.TextMessage, []byte(msgType+":"+msg))
+				wsconn.WriteJSON(obj)
 			}
 		case "kismetParseBSSID":
 			if curPage == "/discover" {
-				wsconn.WriteMessage(websocket.TextMessage, []byte(msgType+":"+msg))
+				wsconn.WriteJSON(obj)
 			}
 		case "kismetParseSOURCE":
 			if curPage == "/discover" {
-				wsconn.WriteMessage(websocket.TextMessage, []byte(msgType+":"+msg))
+				wsconn.WriteJSON(obj)
 			}
 		case "kismetParseCLIENT":
 			if curPage == "/discover" {
-				wsconn.WriteMessage(websocket.TextMessage, []byte(msgType+":"+msg))
+				wsconn.WriteJSON(obj)
 			}
 		default:
-			wsconn.WriteMessage(websocket.TextMessage, []byte(msgType+":"+msg))
+			wsconn.WriteJSON(obj)
 		}
 	}
 }
 
-func processWSCommand(msg string) {
-	s := strings.SplitN(msg, ":", 2)
-
-	switch s[0] {
+func processWSCommand(data map[string]interface{}) {
+	switch data["message"].(string) {
 	case "kismetDISCONNECT":
 		kismet.conn.Close()
 
@@ -49,24 +46,43 @@ func processWSCommand(msg string) {
 		Run(kismet.host, kismet.port, kismet.db, kismet.debug, ssids)
 
 	case "statsNIC":
-		iface, _ := net.InterfaceByName(s[1])
-		active := "0"
-		stats := ""
+		nic := data["nic"].(string)
+		stats := map[string]interface{}{
+			"message":  "nicINFO",
+			"nic":      nic,
+			"active":   0,
+			"physical": "",
+			"alias":    "",
+			"channel":  0,
+			"hop":      0,
+			"velocity": 0,
+			"cList":    "",
+		}
+		iface, _ := net.InterfaceByName(nic)
+		fmt.Println(iface)
 		for _, ele := range kismet.interfaces {
-			if stats == "" && ele.hwaddr == iface.HardwareAddr.String() {
-				active = "2"
-				stats = ele.pname + ";" + ele.lname + ";" + ele.channel + ";" + ele.hop + ";" + ele.velocity + ";" + ele.channellist
+			fmt.Println(stats["active"], ele.hwaddr, iface.HardwareAddr.String())
+			if stats["active"] == 0 && ele.hwaddr == iface.HardwareAddr.String() {
+				fmt.Println("found")
+				stats["active"] = "2"
+				stats["physical"] = ele.pname
+				stats["alias"] = ele.lname
+				stats["channel"] = ele.channel
+				stats["hop"] = ele.hop
+				stats["velocity"] = ele.velocity
+				stats["cList"] = ele.channellist
 			}
-			if ele.pname == s[1] {
-				active = "1"
+			if ele.pname == nic {
+				stats["active"] = "1"
 				break
 			}
 		}
-		stats = s[1] + ";" + active + ";" + stats
-		wsSend("nicINFO", stats)
+		fmt.Println(stats)
+		wsSend(stats)
 
 	case "statsSSID":
-		wlan := networks[s[1]]
+		ssid := data["ssid"].(string)
+		wlan := networks[ssid]
 
 		channels := make(map[int]string)
 		clientCount := 0
@@ -105,51 +121,59 @@ func processWSCommand(msg string) {
 		i, _ = strconv.ParseInt(wlan.lasttime, 10, 64)
 		lastTime := time.Unix(i, 0)
 
-		wsSend("ssidINFO", s[1]+";"+cloaked+";"+firstTime.String()+";"+lastTime.String()+";"+strconv.Itoa(wlan.maxrate)+";"+strconv.Itoa(min)+";"+
-			strconv.Itoa(max)+";"+strconv.Itoa(clientCount)+";"+strconv.Itoa(len(wlan.bssids))+";"+wlan.encryption+";"+strings.Join(keys, ","))
+		wsSend(map[string]interface{}{
+			"message":   "ssidINFO",
+			"ssid":      ssid,
+			"cloaked":   cloaked,
+			"firstseen": firstTime.String(),
+			"lastseen":  lastTime.String(),
+			"maxrate":   wlan.maxrate,
+			"min":       min,
+			"max":       max,
+			"clients":   clientCount,
+			"aps":       len(wlan.bssids),
+			"crypt":     wlan.encryption,
+			"keys":      strings.Join(keys, ","),
+		})
 
 	case "nicADDSOURCE":
-		t := strings.Split(s[1], ":")
-		txt := t[0]
-		if t[1] != "" {
-			txt = txt + ":name=" + t[1]
+		txt := data["nic"].(string)
+		if data["name"].(string) != "" {
+			txt = txt + ":name=" + data["name"].(string)
 		}
 		Send("ADDSOURCE", txt)
 
 	case "nicDELSOURCE":
 		for uid, ele := range kismet.interfaces {
-			if ele.pname == s[1] {
+			if ele.pname == data["nic"].(string) {
 				Send("DELSOURCE", uid)
 				delete(kismet.interfaces, uid)
 				break
 			}
 		}
 	case "nicLOCK":
-		t := strings.Split(s[1], ":")
 		for uid, ele := range kismet.interfaces {
-			if ele.pname == t[0] {
-				Send("HOPSOURCE", uid+" LOCK "+t[1])
+			if ele.pname == data["nic"].(string) {
+				Send("HOPSOURCE", uid+" LOCK "+data["channel"].(string))
 				break
 			}
 		}
 	case "nicHOP":
-		t := strings.Split(s[1], ":")
 		for uid, ele := range kismet.interfaces {
-			if ele.pname == t[0] {
-				Send("HOPSOURCE", uid+" HOP "+t[1])
+			if ele.pname == data["nic"].(string) {
+				Send("HOPSOURCE", uid+" HOP "+data["velocity"].(string))
 				break
 			}
 		}
 	case "nicCHANSOURCE":
-		t := strings.Split(s[1], ":")
 		for uid, ele := range kismet.interfaces {
-			if ele.pname == t[0] {
-				Send("CHANSOURCE", uid+" "+t[1])
+			if ele.pname == data["nic"].(string) {
+				Send("CHANSOURCE", uid+" "+data["cList"].(string))
 				break
 			}
 		}
 	case "getAPDetails":
-		ap := accessPoints[s[1]]
+		ap := accessPoints[data["bssid"].(string)]
 		wlan := networks[ap.ssid]
 
 		i, _ := strconv.ParseInt(ap.firsttime, 10, 64)
@@ -164,9 +188,29 @@ func processWSCommand(msg string) {
 		i, _ = strconv.ParseInt(wlan.lasttime, 10, 64)
 		wlanLastTime := time.Unix(i, 0)
 
-		wsSend("apDetails", ap.ssid+";"+strconv.Itoa(wlan.cloaked)+";"+wlanFirstTime.String()+";"+wlanLastTime.String()+";"+strconv.Itoa(wlan.maxrate)+";"+wlan.encryption+";"+
-			strconv.Itoa(len(wlan.bssids))+";"+s[1]+";"+ap.apType+";"+ap.manuf+";"+strconv.Itoa(ap.channel)+";"+apFirstTime.String()+";"+apLastTime.String()+";"+
-			strconv.Itoa(ap.atype)+";"+ap.rangeip+";"+ap.netmaskip+";"+ap.gatewayip+";"+strconv.Itoa(ap.signalDBM)+";"+strconv.Itoa(ap.minSignalDBM)+";"+
-			strconv.Itoa(ap.maxSignalDBM)+";"+strconv.Itoa(ap.numPackets))
+		wsSend(map[string]interface{}{
+			"message":     "apDetails",
+			"ssid":        ap.ssid,
+			"cloaked":     wlan.cloaked,
+			"firstseen":   wlanFirstTime.String(),
+			"lastseen":    wlanLastTime.String(),
+			"maxrate":     wlan.maxrate,
+			"crypt":       wlan.encryption,
+			"aps":         len(wlan.bssids),
+			"bssid":       data["bssid"].(string),
+			"aptype":      ap.apType,
+			"manuf":       ap.manuf,
+			"channel":     ap.channel,
+			"apfirstseen": apFirstTime.String(),
+			"aplastseen":  apLastTime.String(),
+			"atype":       ap.atype,
+			"ip":          ap.rangeip,
+			"netmask":     ap.netmaskip,
+			"gateway":     ap.gatewayip,
+			"power":       ap.signalDBM,
+			"min":         ap.minSignalDBM,
+			"max":         ap.maxSignalDBM,
+			"packets":     ap.numPackets,
+		})
 	}
 }

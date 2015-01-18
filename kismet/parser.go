@@ -41,11 +41,61 @@ func parsePROTOCOLS(fields []string) {
 	if kismet.debug {
 		fmt.Println(fields)
 	}
+
+	var found bool
+	for _, protocol := range strings.Split(fields[1], ",") {
+		_, found = capabilities[protocol]
+		if found {
+			Send("CAPABILITY", protocol)
+		} else if kismet.debug {
+			fmt.Println("UNKNOWN PROTOCOL: " + protocol)
+		}
+	}
 }
 
 func parseCAPABILITY(fields []string) {
+	/*
+	   BSSID
+	   bssid,type,llcpackets,datapackets,cryptpackets,manuf,channel,firsttime,lasttime,atype,rangeip,netmaskip,gatewayip,gpsfixed,minlat,minlon,minalt,minspd,maxlat,maxlon,maxalt,maxspd,signal_dbm,noise_dbm,minsignal_dbm,minnoise_dbm,maxsignal_dbm,maxnoise_dbm,signal_rssi,noise_rssi,minsignal_rssi,minnoise_rssi,maxsignal_rssi,maxnoise_rssi,bestlat,bestlon,bestalt,agglat,agglon,aggalt,aggpoints,datasize,turbocellnid,turbocellmode,turbocellsat,carrierset,maxseenrate,encodingset,decrypted,dupeivpackets,bsstimestamp,cdpdevice,cdpport,fragments,retries,newpackets,freqmhz,datacryptset
+	   bssid,type,manuf,channel,firsttime,lasttime,atype,rangeip,netmaskip,gatewayip,signal_dbm,minsignal_dbm,maxsignal_dbm,datapackets
+	   CLIENT
+	   bssid,mac,type,firsttime,lasttime,manuf,llcpackets,datapackets,cryptpackets,gpsfixed,minlat,minlon,minalt,minspd,maxlat,maxlon,maxalt,maxspd,agglat,agglon,aggalt,aggpoints,signal_dbm,noise_dbm,minsignal_dbm,minnoise_dbm,maxsignal_dbm,maxnoise_dbm,signal_rssi,noise_rssi,minsignal_rssi,minnoise_rssi,maxsignal_rssi,maxnoise_rssi,bestlat,bestlon,bestalt,atype,ip,gatewayip,datasize,maxseenrate,encodingset,carrierset,decrypted,channel,fragments,retries,newpackets,freqmhz,cdpdevice,cdpport,dot11d,dhcphost,dhcpvendor,datacryptset
+	   bssid,mac,type,firsttime,lasttime,manuf,signal_dbm,minsignal_dbm,maxsignal_dbm,datapackets
+	   BSSIDSRC
+	   bssid,uuid,lasttime,numpackets,signal_dbm,noise_dbm,minsignal_dbm,minnoise_dbm,maxsignal_dbm,maxnoise_dbm,signal_rssi,noise_rssi,minsignal_rssi,minnoise_rssi,maxsignal_rssi,maxnoise_rssi
+	   bssid,uuid,lasttime
+	   CLISRC
+	   bssid,mac,uuid,lasttime,numpackets,signal_dbm,noise_dbm,minsignal_dbm,minnoise_dbm,maxsignal_dbm,maxnoise_dbm,signal_rssi,noise_rssi,minsignal_rssi,minnoise_rssi,maxsignal_rssi,maxnoise_rssi
+	   bssid,mac,uuid,lasttime,numpackets,signal_dbm,minsignal_dbm,maxsignal_dbm
+	*/
 	if kismet.debug {
 		fmt.Println(fields)
+	}
+
+	/*
+		fmt.Println(fields[1])
+		fmt.Println(fields[2])
+		fmt.Println(strings.Join(capabilities[fields[1]].fields, ","))
+	*/
+	var valid bool
+	for _, cField := range capabilities[fields[1]].fields {
+		valid = false
+		for _, sField := range strings.Split(fields[2], ",") {
+			if cField == sField {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			fmt.Println("Invalid capability: " + fields[1] + "/" + cField)
+			break
+		}
+	}
+
+	if !valid {
+		kismet.conn.Close()
+	} else {
+		Send("ENABLE", fields[1]+" "+strings.Join(capabilities[fields[1]].fields, ","))
 	}
 }
 
@@ -74,33 +124,34 @@ func parseINFO(fields []string) {
 		fmt.Println(fields)
 	}
 
-	packets, _ = strconv.Atoi(fields[2])
-	packetRate, _ = strconv.Atoi(fields[3])
-	f, _ := strconv.Atoi(fields[4])
-	if f != 0 {
-		filtered = true
-	}
-
-	fStr := "No"
-	if filtered {
-		fStr = "Yes"
-	}
+	kismet.server.stats.total, _ = strconv.Atoi(fields[1])
+	kismet.server.stats.crypt, _ = strconv.Atoi(fields[2])
+	kismet.server.stats.dropped, _ = strconv.Atoi(fields[3])
+	kismet.server.stats.rate, _ = strconv.Atoi(fields[4])
+	kismet.server.stats.filtered, _ = strconv.Atoi(fields[5])
+	kismet.server.stats.mgmt, _ = strconv.Atoi(fields[6])
+	kismet.server.stats.data, _ = strconv.Atoi(fields[7])
 
 	rCount := 0
-	for network := range networks {
-		rogue := true
-		for _, ssid := range ssids {
-			if ssid == network {
-				rogue = false
-				break
-			}
-		}
-		if rogue {
+	for _, network := range networks {
+		if !network.inscope {
 			rCount++
 		}
 	}
 
-	wsSend("kismetParseInfo", strconv.Itoa(len(networks))+":"+strconv.Itoa(len(clients))+":"+strconv.Itoa(rCount)+":"+fields[2]+":"+fields[3]+":"+fStr)
+	wsSend(map[string]interface{}{
+		"message":  "kismetParseInfo",
+		"networks": len(networks),
+		"rogues":   rCount,
+		"clients":  len(clients),
+		"total":    kismet.server.stats.total,
+		"crypt":    kismet.server.stats.crypt,
+		"dropped":  kismet.server.stats.dropped,
+		"rate":     kismet.server.stats.rate,
+		"filtered": kismet.server.stats.filtered,
+		"mgmt":     kismet.server.stats.mgmt,
+		"data":     kismet.server.stats.data,
+	})
 }
 
 func parseSTATUS(fields []string) {
@@ -165,7 +216,21 @@ func parseSOURCE(fields []string) {
 	if fields[14] != "" {
 		fmt.Println("NIC-WARNING: (" + fields[1] + ") " + fields[14])
 	}
-	wsSend("kismetParseSOURCE", fields[1]+";"+fields[3]+";"+fields[4]+";"+fields[7]+";"+fields[8]+";"+fields[12])
+
+	channel, _ := strconv.Atoi(fields[4])
+	hop, _ := strconv.Atoi(fields[7])
+	velocity, _ := strconv.Atoi(fields[8])
+
+	//wsSend("kismetParseSOURCE", fields[1]+";"+fields[3]+";"+fields[4]+";"+fields[7]+";"+fields[8]+";"+fields[12])
+	wsSend(map[string]interface{}{
+		"message":  "kismetParseSOURCE",
+		"nic":      fields[1],
+		"name":     fields[3],
+		"channel":  channel,
+		"hop":      hop,
+		"velocity": velocity,
+		"chList":   fields[12],
+	})
 }
 
 func parseALERT(fields []string) {
@@ -201,7 +266,6 @@ func parseBSSIDSRC(fields []string) {
 }
 
 func parseBSSID(fields []string) {
-	//"BSSID bssid,type,llcpackets,datapackets,cryptpackets,manuf,channel,firsttime,lasttime,atype,rangeip,netmaskip,gatewayip,gpsfixed,minlat,minlon,minalt,minspd,maxlat,maxlon,maxalt,maxspd,signal_dbm,noise_dbm,minsignal_dbm,minnoise_dbm,maxsignal_dbm,maxnoise_dbm,signal_rssi,noise_rssi,minsignal_rssi,minnoise_rssi,maxsignal_rssi,maxnoise_rssi,bestlat,bestlon,bestalt,agglat,agglon,aggalt,aggpoints,datasize,turbocellnid,turbocellmode,turbocellsat,carrierset,maxseenrate,encodingset,decrypted,dupeivpackets,bsstimestamp,cdpdevice,cdpport,fragments,retries,newpackets,freqmhz,datacryptset",
 	if kismet.debug {
 		fmt.Println(fields)
 	}
@@ -240,7 +304,18 @@ func parseBSSID(fields []string) {
 	}
 
 	lInt, _ := strconv.Atoi(fields[6])
-	wsSend("kismetParseBSSID", fields[1]+";"+fields[4]+";"+time.Unix(int64(lInt), 0).Local().String()+";"+fields[11]+";"+strconv.Itoa(clientCount)+";"+fields[13]+";"+fields[14])
+
+	//wsSend("kismetParseBSSID", fields[1]+";"+fields[4]+";"+time.Unix(int64(lInt), 0).Local().String()+";"+fields[11]+";"+strconv.Itoa(clientCount)+";"+fields[13]+";"+fields[14])
+	wsSend(map[string]interface{}{
+		"message":  "kismetParseBSSID",
+		"bssid":    fields[1],
+		"channel":  channel,
+		"lastseen": time.Unix(int64(lInt), 0).Local().String(),
+		"power":    signalDBM,
+		"max":      maxSignalDBM,
+		"clients":  clientCount,
+		"packets":  numPackets,
+	})
 }
 
 func parseSSID(fields []string) {
@@ -254,9 +329,10 @@ func parseSSID(fields []string) {
 
 		_, exists := networks[fields[4]]
 		if !exists {
-			networks[fields[4]] = network{cloaked, fields[8], fields[9], maxrate, "", map[string]string{}}
+			networks[fields[4]] = network{false, cloaked, fields[8], fields[9], maxrate, "", map[string]string{}}
 		} else {
 			network := networks[fields[4]]
+			network.inscope = false
 			network.cloaked = cloaked
 			network.lasttime = fields[9]
 			network.maxrate = maxrate
@@ -274,7 +350,14 @@ func parseSSID(fields []string) {
 		ap := accessPoints[fields[1]]
 		ap.ssid = fields[4]
 		accessPoints[fields[1]] = ap
-		wsSend("kismetParseSSID", fields[4]+";"+fields[1]+";"+fields[9])
+
+		//wsSend("kismetParseSSID", fields[4]+";"+fields[1]+";"+fields[9])
+		wsSend(map[string]interface{}{
+			"message":  "kismetParseSSID",
+			"ssid":     fields[4],
+			"bssid":    fields[1],
+			"lastseen": fields[9],
+		})
 	}
 }
 
@@ -310,7 +393,16 @@ func parseCLIENT(fields []string) {
 
 		lInt, _ := strconv.Atoi(fields[5])
 
-		wsSend("kismetParseCLIENT", fields[2]+";"+time.Unix(int64(lInt), 0).Local().String()+";"+fields[7]+";"+fields[8]+";"+fields[9]+";"+fields[10])
+		//wsSend("kismetParseCLIENT", fields[2]+";"+time.Unix(int64(lInt), 0).Local().String()+";"+fields[7]+";"+fields[8]+";"+fields[9]+";"+fields[10])
+		wsSend(map[string]interface{}{
+			"message":  "kismetParseCLIENT",
+			"mac":      fields[2],
+			"lastseen": time.Unix(int64(lInt), 0).Local().String(),
+			"power":    signalDBM,
+			"min":      minSignalDBM,
+			"max":      maxSignalDBM,
+			"packets":  numPackets,
+		})
 	}
 }
 
@@ -318,5 +410,9 @@ func parseTERMINATE(fields []string) {
 	if kismet.debug {
 		fmt.Println("TERMINATE")
 	}
-	wsSend("kismetParseTerminate", "DISCONNECTED")
+	//wsSend("kismetParseTerminate", "DISCONNECTED")
+	wsSend(map[string]interface{}{
+		"message": "kismetParseTerminate",
+		"txt":     "DISCONNECTED",
+	})
 }

@@ -326,8 +326,10 @@ function displayDIV(element, event, name, status) {
          displayAccessPoints(accessPoints);
       } else {
 	 var nic = name.substring(3);
-         conn.send('nicCHANSOURCE:' + nic + ':' + document.getElementById('div' + nic + 'Clist').value);
-         conn.send('nicHOP:' + nic + ":" + document.getElementById('div' + nic + 'Crate').value);
+         //conn.send('nicCHANSOURCE:' + nic + ':' + document.getElementById('div' + nic + 'Clist').value);
+         //conn.send('nicHOP:' + nic + ":" + document.getElementById('div' + nic + 'Crate').value);
+	 conn.send(JSON.stringify({message: "nicCHANSOURCE", nic: nic, cList: document.getElementById('div' + nic + 'Clist').value}));
+	 conn.send(JSON.stringify({message: "nicHOP", nic: nic, velocity: document.getElementById('div' + nic + 'Crate').value}));
       }
    }
    document.getElementById(name).style.display = status;
@@ -484,7 +486,8 @@ function channelLock(name) {
    if (isNaN(channel)) {
       alert (channel + ' is not a number');
    } else {
-      conn.send('nicLOCK:' + name + ':' + channel);
+      //conn.send('nicLOCK:' + name + ':' + channel);
+      conn.send(JSON.stringify({message: "nicLOCK", nic: name, channel: channel}));
    }
 }
 
@@ -495,7 +498,8 @@ function channelHop(name) {
    } else {
       vel = 3;
    }
-   conn.send('nicHOP:' + name + ":" + vel);
+   //conn.send('nicHOP:' + name + ":" + vel);
+   conn.send(JSON.stringify({message: "nicHOP", nic: name, velocity: vel}));
 }
 
 function getAccessPoint(e) {
@@ -509,40 +513,39 @@ function getAccessPoint(e) {
       return;
    }
 
-   conn.send('getAPDetails:' + p.childNodes[1].childNodes[0].innerHTML);
+   //conn.send('getAPDetails:' + p.childNodes[1].childNodes[0].innerHTML);
+   conn.send(JSON.stringify({message: "getAPDetails", bssid: p.childNodes[1].childNodes[0].innerHTML}));
    //alert (p.childNodes[0].childNodes[0].innerHTML);
    //alert (p.childNodes[1].childNodes[0].innerHTML);
 }
 
-function apDetails(msg) {
-   var fields = msg.split(";");
-
-   msg = "<span class='stitle'>" + fields[0] + "</span>\n \
+function apDetails(obj) {
+   msg = "<span class='stitle'>" + obj.ssid + "</span>\n \
 <blockquote>\n \
 <table class='stats'>\n \
-<tr><th>Cloaked</th><td>" + fields[1] + "</td></tr>\n \
-<tr><th>First Seen</th><td>" + fields[2] + "</td></tr>\n \
-<tr><th>Last Seen</th><td>" + fields[3] + "</td></tr>\n \
-<tr><th>Max Rate</th><td>" + fields[4] + "</td></tr>\n \
-<tr><th>Encryption</th><td>" + fields[5] + "</td></tr>\n \
-<tr><th># of APs</th><td>" + fields[6] + "</td></tr>\n \
+<tr><th>Cloaked</th><td>" + obj.cloaked + "</td></tr>\n \
+<tr><th>First Seen</th><td>" + obj.firstseen + "</td></tr>\n \
+<tr><th>Last Seen</th><td>" + obj.lastseen + "</td></tr>\n \
+<tr><th>Max Rate</th><td>" + obj.maxrate + "</td></tr>\n \
+<tr><th>Encryption</th><td>" + obj.crypt + "</td></tr>\n \
+<tr><th># of APs</th><td>" + obj.aps + "</td></tr>\n \
 </table></blockquote>\n \
 <p>\n \
-<span class='stitle'>" + fields[7] + "</span>\n \
+<span class='stitle'>" + obj.bssid + "</span>\n \
 <blockquote>\n \
 <table class='stats'>\n \
-<tr><th>Type</th><td>" + fields[8] + "</td></tr>\n \
-<tr><th>Manufacturer</th><td>" + fields[9] + "</td></tr>\n \
-<tr><th>Channel</th><td>" + fields[10] + "</td></tr>\n \
-<tr><th>First Seen</th><td>" + fields[11] + "</td></tr>\n \
-<tr><th>Last Seen</th><td>" + fields[12] + "</td></tr>\n \
-<tr><th>Network</th><td>" + fields[14] + "</td></tr>\n \
-<tr><th>Netmask</th><td>" + fields[15] + "</td></tr>\n \
-<tr><th>Gateway</th><td>" + fields[16] + "</td></tr>\n \
-<tr><th>Power</th><td>" + fields[17] + "</td></tr>\n \
-<tr><th>Min Power</th><td>" + fields[18] + "</td></tr>\n \
-<tr><th>Max Power</th><td>" + fields[19] + "</td></tr>\n \
-<tr><th># of Packets</th><td>" + fields[20] + "</td></tr>\n \
+<tr><th>Type</th><td>" + obj.aptype + "</td></tr>\n \
+<tr><th>Manufacturer</th><td>" + obj.manuf + "</td></tr>\n \
+<tr><th>Channel</th><td>" + obj.channel + "</td></tr>\n \
+<tr><th>First Seen</th><td>" + obj.apfirstseen + "</td></tr>\n \
+<tr><th>Last Seen</th><td>" + obj.aplastseen + "</td></tr>\n \
+<tr><th>Network</th><td>" + obj.ip + "</td></tr>\n \
+<tr><th>Netmask</th><td>" + obj.netmask + "</td></tr>\n \
+<tr><th>Gateway</th><td>" + obj.gateway + "</td></tr>\n \
+<tr><th>Power</th><td>" + obj.power + "</td></tr>\n \
+<tr><th>Min Power</th><td>" + obj.min + "</td></tr>\n \
+<tr><th>Max Power</th><td>" + obj.max + "</td></tr>\n \
+<tr><th># of Packets</th><td>" + obj.packets + "</td></tr>\n \
 </table></blockquote>";
 
    document.getElementById('apDetails').innerHTML = msg;

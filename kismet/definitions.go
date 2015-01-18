@@ -7,15 +7,28 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Packet statistics
+type packetStats struct {
+	total    int
+	crypt    int
+	dropped  int
+	rate     int
+	filtered int
+	mgmt     int
+	data     int
+}
+
+// Kismet server object
 type kismetServer struct {
 	version   string
 	starttime string
 	name      string
 	dumpfiles []string
 	uid       int
-	protocols []string
+	stats     packetStats
 }
 
+// Network interface object
 type networkInterface struct {
 	pname       string
 	lname       string
@@ -27,6 +40,7 @@ type networkInterface struct {
 	bssids      map[string]string
 }
 
+// Kismet client object
 type kismetClient struct {
 	host       string
 	port       int
@@ -39,6 +53,7 @@ type kismetClient struct {
 	interfaces map[string]networkInterface
 }
 
+// Access point object
 type accessPoint struct {
 	//uuid string
 	apType       string
@@ -57,8 +72,9 @@ type accessPoint struct {
 	numPackets   int
 }
 
+// Wireless network object
 type network struct {
-	//type???
+	inscope    bool
 	cloaked    int
 	firsttime  string
 	lasttime   string
@@ -67,6 +83,7 @@ type network struct {
 	bssids     map[string]string
 }
 
+// Wireless client object
 type client struct {
 	bssid        string
 	firsttime    string
@@ -77,6 +94,7 @@ type client struct {
 	numPackets   int
 }
 
+// Package variables
 var (
 	kismet       kismetClient
 	networks     map[string]network
@@ -91,7 +109,34 @@ var (
 	ssids        []string
 )
 
+// Upgrade HTTP connection to websocket
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+}
+
+// Kismet capabilities
+type capability struct {
+	function interface{}
+	fields   []string
+}
+
+var capabilities = map[string]capability{
+	"KISMET":   capability{parseKISMET, []string{"version", "starttime", "servername", "dumpfiles", "uid"}},
+	"TIME":     capability{parseTIME, []string{"timesec"}},
+	"ACK":      capability{parseACK, []string{"cmdid", "text"}},
+	"INFO":     capability{parseINFO, []string{"packets", "crypt", "dropped", "rate", "filtered", "llcpackets", "datapackets"}},
+	"STATUS":   capability{parseSTATUS, []string{"text", "flags"}},
+	"ALERT":    capability{parseALERT, []string{"sec", "usec", "header", "bssid", "source", "dest", "other", "channel", "text"}},
+	"ERROR":    capability{parseERROR, []string{"cmdid", "text"}},
+	"BSSIDSRC": capability{parseBSSIDSRC, []string{"bssid", "uuid", "lasttime"}},
+	"BSSID": capability{parseBSSID,
+		[]string{"bssid", "type", "manuf", "channel", "firsttime", "lasttime", "atype", "rangeip", "netmaskip", "gatewayip", "signal_dbm", "minsignal_dbm", "maxsignal_dbm", "datapackets"}},
+	"SSID": capability{parseSSID,
+		[]string{"mac", "checksum", "type", "ssid", "beaconinfo", "cryptset", "cloaked", "firsttime", "lasttime", "maxrate", "beaconrate", "packets", "beacons", "dot11d"}},
+	"CLISRC": capability{parseCLISRC, []string{"bssid", "mac", "uuid", "lasttime", "numpackets", "signal_dbm", "minsignal_dbm", "maxsignal_dbm"}},
+	"CLIENT": capability{parseCLIENT, []string{"bssid", "mac", "type", "firsttime", "lasttime", "manuf", "signal_dbm", "minsignal_dbm", "maxsignal_dbm", "datapackets"}},
+	"SOURCE": capability{parseSOURCE,
+		[]string{"interface", "type", "username", "channel", "uuid", "packets", "hop", "velocity", "dwell", "hop_time_sec", "hop_time_usec", "channellist", "error", "warning"}},
+	"TERMINATE": capability{parseTERMINATE, []string{"text"}},
 }

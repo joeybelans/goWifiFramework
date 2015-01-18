@@ -2,6 +2,7 @@ package kismet
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -47,7 +48,7 @@ func Run(host string, port int, db *sql.DB, debug bool, ssids []string) {
 	go listen()
 
 	// Setup the client
-	setupClient()
+	//setupClient()
 }
 
 func ServerVersion() string {
@@ -107,12 +108,18 @@ func ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 	curPage = string(p)
 
+	var data map[string]interface{}
 	for {
 		_, message, err := wsconn.ReadMessage()
 		if err != nil {
 			break
 		}
-		processWSCommand(string(message))
+
+		if err := json.Unmarshal(message, &data); err != nil {
+			panic(err)
+		}
+
+		processWSCommand(data)
 	}
 }
 

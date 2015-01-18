@@ -10,18 +10,16 @@ var networks = new Object();
 var interfaces = new Object();
 var clients = new Object();
 
-function kismetParseBSSID(msg) {
-   var fields = msg.split(";");
-
+function kismetParseBSSID(obj) {
    for (var ssid in networks) {
       for (var bssid in networks[ssid].bssids) {
-         if (bssid == fields[0]) {
-	    networks[ssid].bssids[bssid].channel = fields[1];
-	    networks[ssid].bssids[bssid].lasttime = fields[2];
-	    networks[ssid].bssids[bssid].power = fields[3];
-	    networks[ssid].bssids[bssid].clients = fields[4];
-	    networks[ssid].bssids[bssid].max = fields[5];
-	    networks[ssid].bssids[bssid].packets = fields[6];
+         if (bssid == obj.bssid) {
+	    networks[ssid].bssids[bssid].channel = obj.channel;
+	    networks[ssid].bssids[bssid].lasttime = obj.lastseen;
+	    networks[ssid].bssids[bssid].power = obj.power;
+	    networks[ssid].bssids[bssid].clients = obj.power;
+	    networks[ssid].bssids[bssid].max = obj.max;
+	    networks[ssid].bssids[bssid].packets = obj.packets;
             break;
 	 }
       }
@@ -30,16 +28,14 @@ function kismetParseBSSID(msg) {
    processKismetUpdate('BSSID');
 }
 
-function kismetParseSSID(msg) {
-   var fields = msg.split(";");
-
-   if (!(fields[0] in networks)) {
-      networks[fields[0]] = {
-         lastseen: fields[2],
+function kismetParseSSID(obj) {
+   if (!(obj.ssid in networks)) {
+      networks[obj.ssid] = {
+         lastseen: obj.lastseen,
          bssids: {}
       };
-   } else if (!(fields[1] in networks[fields[0]].bssids)) {
-      networks[fields[0]].bssids[fields[1]] = {
+   } else if (!(obj.bssid in networks[obj.ssid].bssids)) {
+      networks[obj.ssid].bssids[obj.bssid] = {
          channel: '',
          lasttime: '',
          power: '',
@@ -52,44 +48,40 @@ function kismetParseSSID(msg) {
    processKismetUpdate('SSID');
 }
 
-function kismetParseSOURCE(msg) {
-   var fields = msg.split(";");
-
-   if (!(fields[0] in interfaces)) {
-      interfaces[fields[0]] = {
-	 name: fields[1],
-	 current: fields[2],
-	 hop: fields[3],
-	 velociy: fields[4],
-	 channels: fields[5]
+function kismetParseSOURCE(obj) {
+   if (!(obj.nic in interfaces)) {
+      interfaces[obj.nic] = {
+	 name: obj.name,
+	 current: obj.channel,
+	 hop: obj.hop,
+	 velociy: obj.velocity,
+	 channels: obj.chList
       };
    } else {
-      interfaces[fields[0]].current = fields[2];
-      interfaces[fields[0]].hop = fields[3];
-      interfaces[fields[0]].velocity = fields[4];
-      interfaces[fields[0]].channels = fields[5];
+      interfaces[obj.nic].current = obj.channel;
+      interfaces[obj.nic].hop = obj.hop;
+      interfaces[obj.nic].velocity = obj.velocity;
+      interfaces[obj.nic].channels = obj.chList;
    }
 
    processKismetUpdate('SOURCE');
 }
 
-function kismetParseCLIENT(msg) {
-   var fields = msg.split(";");
-
-   if (!(fields[0] in clients)) {
-      clients[fields[0]] = {
-	 last: fields[1],
-	 power: fields[2],
-	 min: fields[3],
-	 max: fields[4],
-	 packets: fields[5]
+function kismetParseCLIENT(obj) {
+   if (!(obj.mac in clients)) {
+      clients[obj.mac] = {
+	 last: obj.lastseen,
+	 power: obj.power,
+	 min: obj.min,
+	 max: obj.max,
+	 packets: obj.packets
       };
    } else {
-      clients[fields[0]].last = fields[1];
-      clients[fields[0]].power = fields[2];
-      clients[fields[0]].min = fields[3];
-      clients[fields[0]].max = fields[4];
-      clients[fields[0]].packets = fields[5];
+      clients[obj.mac].last = obj.lastseen;
+      clients[obj.mac].power = obj.power;
+      clients[obj.mac].min = obj.min;
+      clients[obj.mac].max = obj.max;
+      clients[obj.mac].packets = obj.packets;
    }
 
    processKismetUpdate('CLIENT');

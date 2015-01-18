@@ -14,3 +14,5 @@ Display hidden ssids
 Add APs to scope???
 Real-time view of specific AP/Client (graph and text) for rogue detection
 Real-time view of each channel
+FIGURE OUT THIS: ALERT: ADHOCCONFLICT Network BSSID 4C:60:DE:25:93:E3 advertised as AP network, now advertising as Ad-Hoc IBSS, which may indicate AP spoofing/impersonation
+check if initial connect prior to adding nic is the same as after a nic has been added
