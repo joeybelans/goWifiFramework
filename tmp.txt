@@ -1,0 +1,14 @@
+Matrix vlan 192.168.173.0/27
+Oasis 10  standard 192.168.170.0/24
+DMZ Standard 192.168.176.0/26
+6509 Vlan to MPLS fw 192.168.173.232/29
+ACD2.0 - Shared 192.168.175.160/27
+Oasis 192.168.175.192/26
+Secure Application 192.168.177.0/27
+Customer App Vlan - Standard 192.168.172.0/26
+DMZ-PCI 192.168.176.64/27
+DMZ-ACD2.0 192.168.176.96/27
+
+Customer App Vlan - Reserved 192.168.172.64/25
+Customer App Vlan - Reserved 192.168.172.128/26
+Customer App Vlan - Reserved 192.168.172.192/26

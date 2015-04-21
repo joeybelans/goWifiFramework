@@ -1,0 +1,61 @@
+package httpTemplate
+
+import (
+	"html/template"
+	"net"
+	"os"
+
+	_ "github.com/joeybelans/gokismet/kismetHandler"
+)
+
+type page struct {
+	URL   string
+	Title string
+	iface interface{}
+}
+
+var templates map[string]*template.Template
+var GlobalJS *template.Template
+
+func getInterfaces() []string {
+	interfaces, _ := net.Interfaces()
+
+	var iNames []string
+	for _, iface := range interfaces {
+		if _, err := os.Stat("/sys/class/net/" + iface.Name + "/wireless"); err == nil {
+			iNames = append(iNames, iface.Name)
+		}
+	}
+
+	return iNames
+}
+
+func init() {
+	pages := map[int]page{
+		0: page{URL: "/", Title: "Home", iface: tmplHome},
+		1: page{URL: "/kismet", Title: "Kismet", iface: kismetHandler.tmplKismet},
+		2: page{URL: "/profile", Title: "Profile", iface: nil},
+		3: page{URL: "/networks", Title: "Networks", iface: nil},
+		4: page{URL: "/aps", Title: "Access Points", iface: nil},
+		5: page{URL: "/clients", Title: "Clients", iface: nil},
+		6: page{URL: "/reports", Title: "Reports", iface: nil},
+		7: page{URL: "/logs", Title: "Logs", iface: nil},
+	}
+
+	createPages(pages)
+	templates["header"] = template.New("header")
+	templates["header"], _ = templates["header"].Parse(tmplHeader(pages))
+}
+
+func createPages(pages map[int]page) {
+	templates = map[string]*template.Template{}
+
+	for index := range pages {
+		page := pages[index]
+		if page.iface != nil {
+			f := page.iface
+			templates[page.URL] = template.New(page.URL)
+			templates[page.URL], _ = templates[page.URL].Parse(f.(func() string)())
+		}
+	}
+}

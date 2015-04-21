@@ -1,0 +1,41 @@
+function kismetOnOff() {
+   if (document.getElementById("cmn-toggle-7").checked == false) {
+      conn.send(JSON.stringify({message: "kismetDISCONNECT"}));
+   } else {
+      conn.send(JSON.stringify({message: "kismetCONNECT"}));
+   }
+}
+
+function kismetAddSource(nic) {
+   conn.send(JSON.stringify({message: "nicADDSOURCE", nic: nic, name: document.getElementsByName("alias")[0].value}));
+   setTimeout('conn.send(JSON.stringify({message: "statsNIC", nic: "' + nic + '"}))', 3000);
+}
+
+function kismetDelSource(nic) {
+   conn.send(JSON.stringify({message: "nicDELSOURCE", nic: nic}));
+   setTimeout('conn.send(JSON.stringify({message: "statsNIC", nic: "' + nic + '"}))', 3000);
+}
+
+
+function kismetParseTerminate(obj) {
+   document.getElementById("cmn-toggle-7").checked = false;
+}
+
+wsServer = window.location.hostname
+if (window.location.port != "") {
+   wsServer = wsServer + ":" + window.location.port;
+}
+conn = new WebSocket("ws://" + wsServer + "/ws");
+
+conn.onopen = function (event) {
+   conn.send(window.location.pathname);
+};
+
+conn.onclose = function (event) {
+   document.getElementById("cmn-toggle-7").checked = false;
+}
+
+conn.onmessage = function(evt) {
+   var json = JSON.parse(evt.data);
+   window[json.message](json);
+}

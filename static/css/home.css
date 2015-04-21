@@ -1,0 +1,58 @@
+span.ntitle {
+   font-weight: bold;
+   font-size: medium;
+   color: #004415;
+}
+table.nav {
+   margin-left: 20px;
+   border: 0;
+}
+table.nav th {
+   font-weight: bold;
+   font-size: small;
+   color: #004415;
+   vertical-align: top;
+}
+table.nav td {
+   font-size: small;
+   color: #004415;
+   vertical-align: top;
+}
+ul.nav li {
+   font-size: small;
+   color: #004415;
+}
+a.nav:link { 
+   color: #227755; 
+} 
+a.nav:visited { 
+   color: #227755; 
+} 
+a.nav:active { 
+   color: #227755; 
+} 
+a.nav:hover { 
+   color: #116644; 
+}
+table.data {
+   margin-left: 20px;
+   border: 0;
+   border-spacing: 10px;
+}
+table.data .header {
+   font-weight: bold;
+   font-size: medium-large;
+   background-color: #004415;
+   color: #ffffff;
+   text-align: left;
+}
+table.data th {
+   font-weight: bold;
+   font-size: medium;
+   text-align: right;
+   color: #004415;
+}
+table.data td {
+   font-size: small;
+   color: #004415;
+}
