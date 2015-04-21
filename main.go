@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,11 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/joeybelans/gokismet/kdb"
-	"github.com/joeybelans/gokismet/kismet"
-	"github.com/joeybelans/gokismet/kismetTemplate"
-	_ "github.com/joeybelans/gokismet/statik"
-	"github.com/rakyll/statik/fs"
+	"github.com/joeybelans/gokismet/header"
+	"github.com/joeybelans/gokismet/home"
 )
 
 // Prints the program usage
@@ -50,6 +46,11 @@ func (s *ssid) Set(value string) error {
 	return nil
 }
 
+type pkgMap struct {
+	Title     string
+	Processor interface{}
+}
+
 // Main function
 func main() {
 	// Parse arguments
@@ -79,41 +80,22 @@ func main() {
 	// Get the full output directory path
 	*outdir, _ = filepath.Abs(*outdir)
 
-	// Create/Open sqlite3 file
-	db, err := sql.Open("sqlite3", *dbfile)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-	kdb.CreateDB(db, *dbfile)
+	// Initialize packages
+	// Each package will create a link on the navigation banner in the order the packages are loaded
+	// Each Init function should return the address of its ProcessSocket function
+	//packages := map[string]pkgMap{}
+	packages := []interface{}
+	header.Init()
+	//packages["/"] = pkgMap{"Home", home.Init(*lhost, *lport, *khost, *kport, ssids)}
+	packages = Append(interface{"/", "Home", home.Init(*lhost, *lport, *khost, *kport, ssids)})
+	fmt.Println(packages)
 
-	// Start kismet handler
-	kismet.Run(*khost, *kport, db, *debug, ssids)
+	// Create the HTML header
+	header.Create(packages)
 
-	// HTTP handlers
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		kismetTemplate.HttpHome(w, r, *outdir+"/"+*dbfile, ssids)
-	})
-	http.HandleFunc("/discover", func(w http.ResponseWriter, r *http.Request) {
-		kismetTemplate.HttpDiscover(w, r, *outdir+"/"+*dbfile, ssids)
-	})
-	http.HandleFunc("/global.css", func(w http.ResponseWriter, r *http.Request) {
-		kismetTemplate.HttpCSS(w, r)
-	})
-	http.HandleFunc("/kismet.js", func(w http.ResponseWriter, r *http.Request) {
-		kismetTemplate.HttpKismetJS(w, r)
-	})
-	http.HandleFunc("/discover.js", func(w http.ResponseWriter, r *http.Request) {
-		kismetTemplate.HttpDiscoverJS(w, r, ssids)
-	})
-	http.HandleFunc("/ws", kismet.ServeWS)
-
-	// Static files
-	statikFS, err := fs.New()
-	if err != nil {
-		log.Fatalf(err.Error())
-	}
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(statikFS)))
+	/*
+		kismetHandler.Init(*khost, *kport, *debug, ssids)
+	*/
 
 	// Start web service
 	fmt.Printf("Browse to http://%s:%d to access the web interface\n", *lhost, *lport)
